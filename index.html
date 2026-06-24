@@ -7,25 +7,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a2e25">
 <title>寄賣商品建檔系統</title>
-<!-- QR Code 生成（多 CDN 備援）-->
-<script>
-  (function() {
-    const sources = [
-      'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
-      'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js'
-    ];
-    let i = 0;
-    function tryLoad() {
-      if (i >= sources.length) return;
-      const s = document.createElement('script');
-      s.src = sources[i];
-      s.onerror = function() { i++; tryLoad(); };
-      document.head.appendChild(s);
-    }
-    tryLoad();
-  })();
-</script>
 <style>
   :root {
     --primary: #1a2e25;
@@ -125,9 +106,9 @@
   <div class="alert-warn">
     📌 <strong>使用說明</strong><br>
     1️⃣ 點下方「＋ 新增商品」一筆一筆建立商品<br>
-    2️⃣ 全部建好後點「📤 產生匯入 QR Code」<br>
-    3️⃣ 請店主用 POS 系統的「相機」掃描 QR Code<br>
-    4️⃣ 所有商品會自動匯入到店主的寄賣系統<br>
+    2️⃣ 全部建好後點「📤 匯出商品給店主」<br>
+    3️⃣ 下載檔案或複製資料 → 用 LINE 傳給店主<br>
+    4️⃣ 店主在 POS 內貼上資料 → 自動匯入<br>
     <br>
     💾 資料只存在你的手機/電腦，不會上傳，請保留此網頁網址。
   </div>
@@ -142,7 +123,7 @@
 
 <!-- 底部固定操作列 -->
 <div class="floating-bar">
-  <button class="btn btn-outline" onclick="openExportModal()" id="export-btn" disabled>📤 產生匯入 QR</button>
+  <button class="btn btn-outline" onclick="openExportModal()" id="export-btn" disabled>📤 匯出商品給店主</button>
   <button class="btn btn-gold" onclick="openItemModal()">＋ 新增商品</button>
 </div>
 
@@ -183,28 +164,32 @@
   </div>
 </div>
 
-<!-- Export QR Modal -->
+<!-- Export Modal -->
 <div class="modal-overlay" id="export-modal">
   <div class="modal">
     <div class="modal-head">
-      <h3>📤 匯入 QR Code</h3>
+      <h3>📤 匯出商品資料</h3>
       <button class="modal-close" onclick="closeModal('export-modal')">×</button>
     </div>
     <div class="modal-body">
-      <div class="qr-display">
-        <div id="qr-container"></div>
-        <div class="qr-info" id="qr-info"></div>
+      <div class="alert-warn" style="background:linear-gradient(135deg,#fffbf0,#fff);">
+        📋 <strong>傳給店主的方式：</strong><br><br>
+        <strong>方法 1：下載檔案傳給店主</strong><br>
+        點下方「💾 下載商品清單」→ 用 LINE / Email 把檔案傳給店主<br><br>
+        <strong>方法 2：複製文字傳給店主</strong><br>
+        點「📋 複製商品資料」→ 直接貼到 LINE 給店主<br><br>
+        店主收到後在 POS「📥 匯入寄賣商品」貼上即可
       </div>
-      <div class="alert-warn" style="margin-top:14px;">
-        🔍 <strong>店主操作步驟：</strong><br>
-        1. 打開 POS → 「🏬 寄賣」分頁<br>
-        2. 點「📷 掃描匯入」按鈕<br>
-        3. 對準上方 QR Code 自動匯入
-      </div>
+      <div id="export-info" style="text-align:center;padding:10px;background:var(--bg);border-radius:8px;font-size:13px;color:var(--primary);"></div>
+      <details style="margin-top:14px;">
+        <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);">點此查看原始資料（進階）</summary>
+        <textarea id="export-text" readonly style="width:100%;height:120px;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;font-family:monospace;font-size:10px;"></textarea>
+      </details>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-outline" onclick="closeModal('export-modal')" style="margin-left:auto;">關閉</button>
-      <button class="btn btn-gold" onclick="downloadQR()">💾 下載圖片</button>
+      <button class="btn btn-outline" onclick="closeModal('export-modal')">關閉</button>
+      <button class="btn btn-outline" onclick="copyExportText()">📋 複製資料</button>
+      <button class="btn btn-gold" onclick="downloadJSONFile()">💾 下載檔案</button>
     </div>
   </div>
 </div>
@@ -388,11 +373,10 @@ function genBarcode() {
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// ====== 匯出 QR Code ======
+// ====== 匯出資料（給店主匯入用）======
 function openExportModal() {
   if (!items.length) { toast('沒有商品可匯出'); return; }
 
-  // 建立 payload
   const payload = {
     type: 'consign_import_v1',
     vendorId,
@@ -411,115 +395,48 @@ function openExportModal() {
     }))
   };
 
-  // 因為 QR Code 容量有限，把資料壓縮：用 JSON.stringify 後 base64
-  const json = JSON.stringify(payload);
-  // 估算大小
-  const size = new Blob([json]).size;
-
-  const container = document.getElementById('qr-container');
-  const info = document.getElementById('qr-info');
-  container.innerHTML = '';
-
-  // QR Code 容量限制：建議 2KB 內。若超過要拆分。
-  if (size > 2000) {
-    info.innerHTML = `
-      <div style="color:var(--warning);font-weight:700;margin-bottom:8px;">⚠ 資料量較大 (${(size/1024).toFixed(1)}KB)</div>
-      <div>QR Code 內容過長可能難以掃描，建議分次匯出（先匯前 ${Math.floor(items.length / 2)} 筆，再匯後半）。</div>
-      <div style="margin-top:10px;">
-        <button class="btn btn-outline btn-sm" onclick="exportPart(1)">前半 (${Math.floor(items.length / 2)} 筆)</button>
-        <button class="btn btn-outline btn-sm" onclick="exportPart(2)">後半 (${items.length - Math.floor(items.length / 2)} 筆)</button>
-        <button class="btn btn-gold btn-sm" onclick="forceExportAll()">強制全部</button>
-      </div>
-    `;
-  } else {
-    drawQR(json, items.length, size);
-  }
-
+  const json = JSON.stringify(payload, null, 2);
+  document.getElementById('export-text').value = json;
+  document.getElementById('export-info').innerHTML = `
+    <strong>${items.length}</strong> 件商品已準備好匯出<br>
+    <span style="font-size:11px;color:var(--text-muted);">${(new Blob([json]).size / 1024).toFixed(1)}KB</span>
+  `;
   openModal('export-modal');
 }
 
-function exportPart(part) {
-  const half = Math.floor(items.length / 2);
-  const sliced = part === 1 ? items.slice(0, half) : items.slice(half);
-  const payload = {
-    type: 'consign_import_v1',
-    vendorId,
-    vendorName: vendorName ? decodeURIComponent(vendorName) : '',
-    exportedAt: new Date().toISOString(),
-    items: sliced.map(it => ({
-      name: it.name, sku: it.sku, barcode: it.barcode, price: it.price,
-      stock: it.stock, color: it.color, size: it.size, cat: it.cat, note: it.note
-    }))
-  };
-  const json = JSON.stringify(payload);
-  drawQR(json, sliced.length, new Blob([json]).size);
-}
-
-function forceExportAll() {
-  const payload = {
-    type: 'consign_import_v1',
-    vendorId,
-    vendorName: vendorName ? decodeURIComponent(vendorName) : '',
-    exportedAt: new Date().toISOString(),
-    items: items.map(it => ({
-      name: it.name, sku: it.sku, barcode: it.barcode, price: it.price,
-      stock: it.stock, color: it.color, size: it.size, cat: it.cat, note: it.note
-    }))
-  };
-  const json = JSON.stringify(payload);
-  drawQR(json, items.length, new Blob([json]).size);
-}
-
-function drawQR(json, count, size) {
-  const container = document.getElementById('qr-container');
-  const info = document.getElementById('qr-info');
-
-  if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
-    container.innerHTML = '<canvas id="qr-canvas"></canvas>';
-    QRCode.toCanvas(document.getElementById('qr-canvas'), json, {
-      width: 320,
-      margin: 2,
-      color: { dark: '#1a2e25', light: '#ffffff' },
-      errorCorrectionLevel: 'M'
-    }, err => {
-      if (err) {
-        showQRFallback(container, json, '產生失敗：' + err.message);
-      } else {
-        info.innerHTML = `
-          <div><strong>${count}</strong> 件商品 · 資料大小 ${(size/1024).toFixed(1)}KB</div>
-          <div style="font-size:11px;margin-top:4px;color:var(--text-muted);">產生於 ${new Date().toLocaleString('zh-TW')}</div>
-        `;
-      }
+function copyExportText() {
+  const text = document.getElementById('export-text').value;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      toast('✓ 已複製，可貼到 LINE 給店主');
+    }).catch(() => {
+      // 備援
+      const ta = document.getElementById('export-text');
+      ta.select();
+      document.execCommand('copy');
+      toast('✓ 已複製');
     });
   } else {
-    showQRFallback(container, json, 'QRCode 函式庫沒載入成功');
-    info.innerHTML = `
-      <div><strong>${count}</strong> 件商品 · 資料大小 ${(size/1024).toFixed(1)}KB</div>
-      <div style="font-size:11px;margin-top:4px;color:var(--text-muted);">產生於 ${new Date().toLocaleString('zh-TW')}</div>
-    `;
+    const ta = document.getElementById('export-text');
+    ta.select();
+    document.execCommand('copy');
+    toast('✓ 已複製');
   }
 }
 
-// QR Code 替代方案：用 Google Charts API
-function showQRFallback(container, content, reason) {
-  if (content.length > 2000) {
-    container.innerHTML = `<div style="color:var(--danger);padding:20px;">⚠ 資料量太大且 QR 函式庫沒載入，請減少商品數量再試</div>`;
-    return;
-  }
-  const googleQrUrl = `https://chart.googleapis.com/chart?cht=qr&chs=320x320&chld=M|2&chl=${encodeURIComponent(content)}`;
-  container.innerHTML = `
-    <img src="${googleQrUrl}" alt="QR Code" style="max-width:320px;width:100%;border:1px solid var(--border);border-radius:8px;" onerror="this.parentNode.innerHTML='<div style=color:var(--danger);padding:20px;>⚠ 無法產生 QR Code：${reason}</div>'">
-  `;
-}
-
-function downloadQR() {
-  const canvas = document.getElementById('qr-canvas');
-  if (!canvas) return;
+function downloadJSONFile() {
+  const text = document.getElementById('export-text').value;
+  if (!text) return;
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
-  link.download = `consign-qr-${vendorId}-${Date.now()}.png`;
-  link.href = canvas.toDataURL();
+  const vendorPart = vendorName ? decodeURIComponent(vendorName) : vendorId;
+  const dateStr = new Date().toISOString().slice(0, 10);
+  link.download = `寄賣商品-${vendorPart}-${dateStr}.json`;
+  link.href = url;
   link.click();
-  toast('已下載 QR Code 圖片');
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+  toast('✓ 已下載檔案，可傳給店主');
 }
 
 // ====== 啟動 ======
