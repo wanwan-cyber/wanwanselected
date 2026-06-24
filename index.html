@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a2e25">
+<title>寄賣商品建檔系統</title>
+<!-- QR Code 生成 -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+  :root {
+    --primary: #1a2e25;
+    --primary-light: #2d4a3e;
+    --gold: #c9a84c;
+    --gold-light: #d9bb6a;
+    --bg: #faf8f3;
+    --surface: #fff;
+    --surface2: #f0ebe0;
+    --text: #2c2c2c;
+    --text-muted: #888;
+    --border: #e5e0d0;
+    --success: #27ae60;
+    --warning: #e67e22;
+    --danger: #c0392b;
+    --radius: 8px;
+    --shadow: 0 2px 12px rgba(26,46,37,.06);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+  .container { max-width: 720px; margin: 0 auto; padding: 16px; padding-bottom: 80px; }
+  .header { background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff; padding: 20px 18px; border-radius: 16px; margin-bottom: 16px; }
+  .header h1 { margin: 0 0 6px; font-size: 20px; color: var(--gold); }
+  .header p { margin: 0; font-size: 12px; color: rgba(255,255,255,.75); line-height: 1.6; }
+  .vendor-tag { display: inline-block; background: rgba(201,168,76,.2); color: var(--gold); padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-top: 8px; }
+
+  .alert-warn { background: #fffbf0; border: 1px solid var(--gold); border-radius: 12px; padding: 14px; margin-bottom: 14px; font-size: 13px; color: var(--primary); line-height: 1.6; }
+
+  .btn { padding: 10px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .15s; font-family: inherit; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-light); }
+  .btn-gold { background: var(--gold); color: #fff; }
+  .btn-gold:hover { background: var(--gold-light); }
+  .btn-outline { background: transparent; color: var(--primary); border: 1px solid var(--border); }
+  .btn-outline:hover { background: var(--bg); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  .product-list { display: grid; gap: 10px; }
+  .product-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+  .product-card .pc-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .product-card .pc-name { font-weight: 700; color: var(--primary); font-size: 14px; }
+  .product-card .pc-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .product-card .pc-price { font-weight: 800; color: var(--gold); font-size: 16px; font-variant-numeric: tabular-nums; }
+  .product-card .pc-barcode { font-family: monospace; font-size: 11px; color: var(--gold); font-weight: 700; }
+  .product-card .pc-actions { display: flex; gap: 4px; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100; align-items: center; justify-content: center; padding: 0; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 16px 16px 0 0; width: 100%; max-width: 520px; max-height: 92vh; display: flex; flex-direction: column; animation: slideUp .25s; }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  @media (min-width: 768px) {
+    .modal-overlay { padding: 20px; align-items: center; }
+    .modal { border-radius: 16px; }
+  }
+  .modal-head { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .modal-head h3 { margin: 0; color: var(--primary); font-size: 16px; }
+  .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted); padding: 0; }
+  .modal-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
+  .modal-foot { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--primary); margin-bottom: 5px; }
+  .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 14px; font-family: inherit; outline: none; background: #fff; }
+  .form-group input:focus, .form-group textarea:focus { border-color: var(--gold); }
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+  @media (max-width: 480px) { .form-row { flex-direction: column; gap: 0; } }
+
+  .floating-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; box-shadow: 0 -4px 16px rgba(0,0,0,.08); padding: 12px 16px; display: flex; gap: 8px; z-index: 50; border-top: 1px solid var(--border); }
+  .floating-bar .btn { flex: 1; }
+
+  .empty { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+  .empty .icon { font-size: 48px; margin-bottom: 10px; }
+
+  .qr-display { text-align: center; padding: 20px; background: #fff; border-radius: 12px; }
+  .qr-display canvas { margin: 0 auto; display: block; max-width: 100%; }
+  .qr-display .qr-info { margin-top: 14px; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+  .badge-green { background: #e8f5e9; color: var(--success); }
+  .badge-orange { background: #fff3e0; color: var(--warning); }
+
+  #toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #fff; padding: 10px 18px; border-radius: 22px; font-size: 13px; z-index: 200; opacity: 0; transition: all .3s; box-shadow: 0 4px 16px rgba(0,0,0,.2); pointer-events: none; }
+  #toast.show { opacity: 1; bottom: 100px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>🏬 寄賣商品建檔</h1>
+    <p>在這裡新增你的商品，產生 QR Code 後給店主掃描，一次匯入所有商品。</p>
+    <div class="vendor-tag" id="vendor-tag">寄賣商：載入中…</div>
+  </div>
+
+  <div class="alert-warn">
+    📌 <strong>使用說明</strong><br>
+    1️⃣ 點下方「＋ 新增商品」一筆一筆建立商品<br>
+    2️⃣ 全部建好後點「📤 產生匯入 QR Code」<br>
+    3️⃣ 請店主用 POS 系統的「相機」掃描 QR Code<br>
+    4️⃣ 所有商品會自動匯入到店主的寄賣系統<br>
+    <br>
+    💾 資料只存在你的手機/電腦，不會上傳，請保留此網頁網址。
+  </div>
+
+  <div id="product-list" class="product-list"></div>
+
+  <div class="empty" id="empty-state" style="display:none;">
+    <div class="icon">📦</div>
+    <p>還沒有商品，點下方「＋ 新增商品」開始</p>
+  </div>
+</div>
+
+<!-- 底部固定操作列 -->
+<div class="floating-bar">
+  <button class="btn btn-outline" onclick="openExportModal()" id="export-btn" disabled>📤 產生匯入 QR</button>
+  <button class="btn btn-gold" onclick="openItemModal()">＋ 新增商品</button>
+</div>
+
+<!-- 商品 Modal -->
+<div class="modal-overlay" id="item-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="item-modal-title">新增商品</h3>
+      <button class="modal-close" onclick="closeModal('item-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>商品名稱 *</label><input type="text" id="im-name" placeholder="例：手工銀飾項鍊"></div>
+      <div class="form-row">
+        <div class="form-group"><label>款號（可選）</label><input type="text" id="im-sku" placeholder="廠商款號"></div>
+        <div class="form-group">
+          <label>條碼 * <button type="button" onclick="genBarcode()" style="font-size:10px;padding:2px 6px;background:var(--gold);color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:4px;">🎲 自動</button></label>
+          <input type="text" id="im-barcode" placeholder="掃描或自動產生">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>售價 ($) *</label><input type="number" id="im-price" min="0"></div>
+        <div class="form-group"><label>進貨數量 *</label><input type="number" id="im-stock" min="0" value="1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>顏色（可選）</label><input type="text" id="im-color" placeholder="例：銀色"></div>
+        <div class="form-group"><label>尺寸（可選）</label><input type="text" id="im-size" placeholder="例：F"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>分類（可選）</label><input type="text" id="im-cat" placeholder="例：飾品"></div>
+      </div>
+      <div class="form-group"><label>備註</label><textarea id="im-note" rows="2"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger btn-sm" onclick="deleteItem()" id="im-delete-btn" style="display:none;">🗑 刪除</button>
+      <button class="btn btn-outline" onclick="closeModal('item-modal')" style="margin-left:auto;">取消</button>
+      <button class="btn btn-primary" onclick="saveItem()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export QR Modal -->
+<div class="modal-overlay" id="export-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>📤 匯入 QR Code</h3>
+      <button class="modal-close" onclick="closeModal('export-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="qr-display">
+        <div id="qr-container"></div>
+        <div class="qr-info" id="qr-info"></div>
+      </div>
+      <div class="alert-warn" style="margin-top:14px;">
+        🔍 <strong>店主操作步驟：</strong><br>
+        1. 打開 POS → 「🏬 寄賣」分頁<br>
+        2. 點「📷 掃描匯入」按鈕<br>
+        3. 對準上方 QR Code 自動匯入
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('export-modal')" style="margin-left:auto;">關閉</button>
+      <button class="btn btn-gold" onclick="downloadQR()">💾 下載圖片</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ====== 初始化：解析 URL 中的寄賣商 ID ======
+const urlParams = new URLSearchParams(window.location.search);
+const vendorId = urlParams.get('v') || ''; // 寄賣商 ID
+const vendorName = urlParams.get('name') || ''; // 寄賣商名稱（顯示用）
+
+if (!vendorId) {
+  document.querySelector('.container').innerHTML = `
+    <div class="alert-warn" style="background:#fde8e8;border-color:var(--danger);">
+      ⚠ <strong>網址錯誤</strong><br>
+      此頁面需要透過店主提供的專屬 QR Code 開啟。<br>
+      請聯絡店主取得你的專屬網址。
+    </div>
+  `;
+  document.querySelector('.floating-bar').style.display = 'none';
+} else {
+  document.getElementById('vendor-tag').textContent = '🏬 ' + (vendorName ? decodeURIComponent(vendorName) : `寄賣商 ${vendorId}`);
+}
+
+// ====== 資料儲存（依寄賣商 ID 分開）======
+const storageKey = 'consign_items_' + vendorId;
+let items = JSON.parse(localStorage.getItem(storageKey) || '[]');
+let editId = null;
+
+function save() {
+  localStorage.setItem(storageKey, JSON.stringify(items));
+}
+
+function uid() {
+  return 'i_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function fmt(n) { return '$' + Number(n).toLocaleString(); }
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ====== 渲染 ======
+function render() {
+  const listEl = document.getElementById('product-list');
+  const emptyEl = document.getElementById('empty-state');
+  const exportBtn = document.getElementById('export-btn');
+
+  if (!items.length) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    exportBtn.disabled = true;
+    exportBtn.style.opacity = .5;
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  exportBtn.disabled = false;
+  exportBtn.style.opacity = 1;
+
+  listEl.innerHTML = items.map(it => `
+    <div class="product-card" onclick="editItem('${it.id}')">
+      <div class="pc-head">
+        <div style="flex:1;min-width:0;">
+          <div class="pc-name">${escapeHtml(it.name)}</div>
+          <div class="pc-meta">
+            ${it.cat ? escapeHtml(it.cat) + ' · ' : ''}
+            ${it.color ? escapeHtml(it.color) + ' ' : ''}
+            ${it.size ? escapeHtml(it.size) : ''}
+            ${it.color || it.size ? '· ' : ''}
+            庫存 ${it.stock}
+          </div>
+          <div class="pc-barcode">📷 ${escapeHtml(it.barcode || '無條碼')}</div>
+        </div>
+        <div class="pc-price">${fmt(it.price)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+}
+
+// ====== 商品 CRUD ======
+function openItemModal() {
+  editId = null;
+  document.getElementById('item-modal-title').textContent = '新增商品';
+  document.getElementById('im-delete-btn').style.display = 'none';
+  ['im-name','im-sku','im-barcode','im-price','im-color','im-size','im-cat','im-note'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('im-stock').value = 1;
+  openModal('item-modal');
+}
+
+function editItem(id) {
+  const it = items.find(x => x.id === id);
+  if (!it) return;
+  editId = id;
+  document.getElementById('item-modal-title').textContent = '編輯商品';
+  document.getElementById('im-delete-btn').style.display = '';
+  document.getElementById('im-name').value = it.name || '';
+  document.getElementById('im-sku').value = it.sku || '';
+  document.getElementById('im-barcode').value = it.barcode || '';
+  document.getElementById('im-price').value = it.price || '';
+  document.getElementById('im-stock').value = it.stock || 0;
+  document.getElementById('im-color').value = it.color || '';
+  document.getElementById('im-size').value = it.size || '';
+  document.getElementById('im-cat').value = it.cat || '';
+  document.getElementById('im-note').value = it.note || '';
+  openModal('item-modal');
+}
+
+function saveItem() {
+  const name = document.getElementById('im-name').value.trim();
+  if (!name) { alert('請輸入商品名稱'); return; }
+  const price = parseFloat(document.getElementById('im-price').value);
+  if (!price || price <= 0) { alert('請輸入售價'); return; }
+  const barcode = document.getElementById('im-barcode').value.trim().toUpperCase();
+  if (!barcode) { alert('請輸入或產生條碼'); return; }
+
+  if (items.some(it => it.barcode === barcode && it.id !== editId)) {
+    alert('此條碼已被使用，請更換');
+    return;
+  }
+
+  const data = {
+    name,
+    sku: document.getElementById('im-sku').value.trim().toUpperCase(),
+    barcode,
+    price,
+    stock: parseInt(document.getElementById('im-stock').value) || 0,
+    color: document.getElementById('im-color').value.trim(),
+    size: document.getElementById('im-size').value.trim(),
+    cat: document.getElementById('im-cat').value.trim(),
+    note: document.getElementById('im-note').value.trim(),
+  };
+
+  if (editId) {
+    const idx = items.findIndex(x => x.id === editId);
+    if (idx >= 0) items[idx] = { ...items[idx], ...data };
+  } else {
+    items.push({ id: uid(), ...data });
+  }
+  save();
+  closeModal('item-modal');
+  render();
+  toast(editId ? '已更新' : '已新增商品');
+}
+
+function deleteItem() {
+  if (!editId) return;
+  const it = items.find(x => x.id === editId);
+  if (!confirm(`確定刪除「${it.name}」？`)) return;
+  items = items.filter(x => x.id !== editId);
+  save();
+  closeModal('item-modal');
+  render();
+  toast('已刪除');
+}
+
+// ====== 自動產生條碼 ======
+function genBarcode() {
+  // 格式：CV + 寄賣商 ID 後 4 碼 + 4 位數字
+  const vPart = (vendorId.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(-4) || 'XXXX').padStart(4, '0');
+  for (let i = 1; i < 9999; i++) {
+    const code = 'CV' + vPart + String(i).padStart(4, '0');
+    if (!items.some(it => it.barcode === code && it.id !== editId)) {
+      document.getElementById('im-barcode').value = code;
+      return;
+    }
+  }
+}
+
+// ====== Modal 控制 ======
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ====== 匯出 QR Code ======
+function openExportModal() {
+  if (!items.length) { toast('沒有商品可匯出'); return; }
+
+  // 建立 payload
+  const payload = {
+    type: 'consign_import_v1',
+    vendorId,
+    vendorName: vendorName ? decodeURIComponent(vendorName) : '',
+    exportedAt: new Date().toISOString(),
+    items: items.map(it => ({
+      name: it.name,
+      sku: it.sku,
+      barcode: it.barcode,
+      price: it.price,
+      stock: it.stock,
+      color: it.color,
+      size: it.size,
+      cat: it.cat,
+      note: it.note,
+    }))
+  };
+
+  // 因為 QR Code 容量有限，把資料壓縮：用 JSON.stringify 後 base64
+  const json = JSON.stringify(payload);
+  // 估算大小
+  const size = new Blob([json]).size;
+
+  const container = document.getElementById('qr-container');
+  const info = document.getElementById('qr-info');
+  container.innerHTML = '';
+
+  // QR Code 容量限制：建議 2KB 內。若超過要拆分。
+  if (size > 2000) {
+    info.innerHTML = `
+      <div style="color:var(--warning);font-weight:700;margin-bottom:8px;">⚠ 資料量較大 (${(size/1024).toFixed(1)}KB)</div>
+      <div>QR Code 內容過長可能難以掃描，建議分次匯出（先匯前 ${Math.floor(items.length / 2)} 筆，再匯後半）。</div>
+      <div style="margin-top:10px;">
+        <button class="btn btn-outline btn-sm" onclick="exportPart(1)">前半 (${Math.floor(items.length / 2)} 筆)</button>
+        <button class="btn btn-outline btn-sm" onclick="exportPart(2)">後半 (${items.length - Math.floor(items.length / 2)} 筆)</button>
+        <button class="btn btn-gold btn-sm" onclick="forceExportAll()">強制全部</button>
+      </div>
+    `;
+  } else {
+    drawQR(json, items.length, size);
+  }
+
+  openModal('export-modal');
+}
+
+function exportPart(part) {
+  const half = Math.floor(items.length / 2);
+  const sliced = part === 1 ? items.slice(0, half) : items.slice(half);
+  const payload = {
+    type: 'consign_import_v1',
+    vendorId,
+    vendorName: vendorName ? decodeURIComponent(vendorName) : '',
+    exportedAt: new Date().toISOString(),
+    items: sliced.map(it => ({
+      name: it.name, sku: it.sku, barcode: it.barcode, price: it.price,
+      stock: it.stock, color: it.color, size: it.size, cat: it.cat, note: it.note
+    }))
+  };
+  const json = JSON.stringify(payload);
+  drawQR(json, sliced.length, new Blob([json]).size);
+}
+
+function forceExportAll() {
+  const payload = {
+    type: 'consign_import_v1',
+    vendorId,
+    vendorName: vendorName ? decodeURIComponent(vendorName) : '',
+    exportedAt: new Date().toISOString(),
+    items: items.map(it => ({
+      name: it.name, sku: it.sku, barcode: it.barcode, price: it.price,
+      stock: it.stock, color: it.color, size: it.size, cat: it.cat, note: it.note
+    }))
+  };
+  const json = JSON.stringify(payload);
+  drawQR(json, items.length, new Blob([json]).size);
+}
+
+function drawQR(json, count, size) {
+  const container = document.getElementById('qr-container');
+  const info = document.getElementById('qr-info');
+  container.innerHTML = '<canvas id="qr-canvas"></canvas>';
+  QRCode.toCanvas(document.getElementById('qr-canvas'), json, {
+    width: 320,
+    margin: 2,
+    color: { dark: '#1a2e25', light: '#ffffff' },
+    errorCorrectionLevel: 'M'
+  }, err => {
+    if (err) {
+      info.innerHTML = `<div style="color:var(--danger);">❌ 產生失敗：${err.message}<br>請減少商品數量重試</div>`;
+    } else {
+      info.innerHTML = `
+        <div><strong>${count}</strong> 件商品 · 資料大小 ${(size/1024).toFixed(1)}KB</div>
+        <div style="font-size:11px;margin-top:4px;color:var(--text-muted);">產生於 ${new Date().toLocaleString('zh-TW')}</div>
+      `;
+    }
+  });
+}
+
+function downloadQR() {
+  const canvas = document.getElementById('qr-canvas');
+  if (!canvas) return;
+  const link = document.createElement('a');
+  link.download = `consign-qr-${vendorId}-${Date.now()}.png`;
+  link.href = canvas.toDataURL();
+  link.click();
+  toast('已下載 QR Code 圖片');
+}
+
+// ====== 啟動 ======
+render();
+</script>
+</body>
+</html>
