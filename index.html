@@ -7,8 +7,25 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a2e25">
 <title>寄賣商品建檔系統</title>
-<!-- QR Code 生成 -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<!-- QR Code 生成（多 CDN 備援）-->
+<script>
+  (function() {
+    const sources = [
+      'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
+      'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js'
+    ];
+    let i = 0;
+    function tryLoad() {
+      if (i >= sources.length) return;
+      const s = document.createElement('script');
+      s.src = sources[i];
+      s.onerror = function() { i++; tryLoad(); };
+      document.head.appendChild(s);
+    }
+    tryLoad();
+  })();
+</script>
 <style>
   :root {
     --primary: #1a2e25;
@@ -456,22 +473,43 @@ function forceExportAll() {
 function drawQR(json, count, size) {
   const container = document.getElementById('qr-container');
   const info = document.getElementById('qr-info');
-  container.innerHTML = '<canvas id="qr-canvas"></canvas>';
-  QRCode.toCanvas(document.getElementById('qr-canvas'), json, {
-    width: 320,
-    margin: 2,
-    color: { dark: '#1a2e25', light: '#ffffff' },
-    errorCorrectionLevel: 'M'
-  }, err => {
-    if (err) {
-      info.innerHTML = `<div style="color:var(--danger);">❌ 產生失敗：${err.message}<br>請減少商品數量重試</div>`;
-    } else {
-      info.innerHTML = `
-        <div><strong>${count}</strong> 件商品 · 資料大小 ${(size/1024).toFixed(1)}KB</div>
-        <div style="font-size:11px;margin-top:4px;color:var(--text-muted);">產生於 ${new Date().toLocaleString('zh-TW')}</div>
-      `;
-    }
-  });
+
+  if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+    container.innerHTML = '<canvas id="qr-canvas"></canvas>';
+    QRCode.toCanvas(document.getElementById('qr-canvas'), json, {
+      width: 320,
+      margin: 2,
+      color: { dark: '#1a2e25', light: '#ffffff' },
+      errorCorrectionLevel: 'M'
+    }, err => {
+      if (err) {
+        showQRFallback(container, json, '產生失敗：' + err.message);
+      } else {
+        info.innerHTML = `
+          <div><strong>${count}</strong> 件商品 · 資料大小 ${(size/1024).toFixed(1)}KB</div>
+          <div style="font-size:11px;margin-top:4px;color:var(--text-muted);">產生於 ${new Date().toLocaleString('zh-TW')}</div>
+        `;
+      }
+    });
+  } else {
+    showQRFallback(container, json, 'QRCode 函式庫沒載入成功');
+    info.innerHTML = `
+      <div><strong>${count}</strong> 件商品 · 資料大小 ${(size/1024).toFixed(1)}KB</div>
+      <div style="font-size:11px;margin-top:4px;color:var(--text-muted);">產生於 ${new Date().toLocaleString('zh-TW')}</div>
+    `;
+  }
+}
+
+// QR Code 替代方案：用 Google Charts API
+function showQRFallback(container, content, reason) {
+  if (content.length > 2000) {
+    container.innerHTML = `<div style="color:var(--danger);padding:20px;">⚠ 資料量太大且 QR 函式庫沒載入，請減少商品數量再試</div>`;
+    return;
+  }
+  const googleQrUrl = `https://chart.googleapis.com/chart?cht=qr&chs=320x320&chld=M|2&chl=${encodeURIComponent(content)}`;
+  container.innerHTML = `
+    <img src="${googleQrUrl}" alt="QR Code" style="max-width:320px;width:100%;border:1px solid var(--border);border-radius:8px;" onerror="this.parentNode.innerHTML='<div style=color:var(--danger);padding:20px;>⚠ 無法產生 QR Code：${reason}</div>'">
+  `;
 }
 
 function downloadQR() {
